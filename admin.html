@@ -1,18 +1,30 @@
-{{define head}}
 <html>
   <head>
+    <title>Admin</title>
+    <style>
+      label {
+        display: inline-block;
+        width: 100px;
+      }
+      section {
+        margin: 8px;
+        padding: 8px;
+      }
+    </style>
   </head>
-{{end}}
-
-{{define body}}
   <body>
-    <div hidden="{{.Message}}">
-
-    </div>
-    <form action="admin">
-      <input name="foo" />
-      <button type="submit">Submit</button>
+    <h1>Admin</h1>
+    <form>
+      <section>
+        <label for="check">Check System</label>
+        <input type="text" name="check" value="" />
+        <button action="submit">Submit</button>
+      </section>
+      <section>
+        <label for="blob">Add system</label>
+        <textarea name="blob"></textarea>
+        <button action="submit">Submit</button>
+      </section>
     </form>
   </body>
 </html>
-{{end}}
