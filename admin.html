@@ -4,27 +4,30 @@
     <style>
       label {
         display: inline-block;
-        width: 100px;
+        width: 150px;
       }
-      section {
+      form {
         margin: 8px;
+        padding: 8px;
+      }
+      .blob {
+        border: 1px solid rgba(0,0,0,0.5);
         padding: 8px;
       }
     </style>
   </head>
   <body>
     <h1>Admin</h1>
+    <div class="blob">{{.Blob}}</div>
+    <form enctype="multipart/form-data" method="POST">
+      <label for="systems">Update systems</label>
+      <input type="file" name="systems" />
+      <button action="submit">Upload</button>
+    </form>
     <form>
-      <section>
-        <label for="check">Check System</label>
-        <input type="text" name="check" value="" />
-        <button action="submit">Submit</button>
-      </section>
-      <section>
-        <label for="blob">Add system</label>
-        <textarea name="blob"></textarea>
-        <button action="submit">Submit</button>
-      </section>
+      <label for="check">Check System</label>
+      <input type="text" name="check" value="{{.Check}}" />
+      <button action="submit">Submit</button>
     </form>
   </body>
 </html>
