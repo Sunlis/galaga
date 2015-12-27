@@ -8,6 +8,9 @@ import (
   "util"
   "strconv"
   "encoding/json"
+  "appengine"
+  "appengine/datastore"
+  // "appengine/user"
 )
 
 func init() {
@@ -24,23 +27,23 @@ type Systems []struct {
 }
 
 type System struct {
-  Id             int    `json:"id"`
-  Name           string `json:"name"`
-  X              float64  `json:"x"`
-  Y              float64  `json:"y"`
-  Z              float64  `json:"z"`
-  Faction        string `json:"faction"`
-  Population     int    `json:"population"`
-  Government     string `json:"government"`
-  Allegiance     string `json:"allegiance"`
-  State          string `json:"state"`
-  Security       string `json:"security"`
-  PrimaryEconomy string `json:"primary_economy"`
-  Power          string `json:"power"`
-  PowerState     string `json:"power_state"`
-  NeedsPermit    int    `json:"needs_permit"`
-  UpdatedAt      int    `json:"updated_at"`
-  SimbadRef      string `json:"simbad_ref"`
+  Id             int    `datastore:"id" json:"id"`
+  Name           string `datastore:"name" json:"name"`
+  X              float64  `datastore:"x" json:"x"`
+  Y              float64  `datastore:"y" json:"y"`
+  Z              float64  `datastore:"z" json:"z"`
+  Faction        string `datastore:"faction" json:"faction"`
+  Population     int    `datastore:"pop" json:"population"`
+  Government     string `datastore:"gov" json:"government"`
+  Allegiance     string `datastore:"alleg" json:"allegiance"`
+  State          string `datastore:"state" json:"state"`
+  Security       string `datastore:"sec" json:"security"`
+  PrimaryEconomy string `datastore:"primec" json:"primary_economy"`
+  Power          string `datastore:"power" json:"power"`
+  PowerState     string `datastore:"powerst" json:"power_state"`
+  NeedsPermit    int    `datastore:"needperm" json:"needs_permit"`
+  UpdatedAt      int    `datastore:"upd" json:"updated_at"`
+  SimbadRef      string `datastore:"simbad" json:"simbad_ref"`
 }
 
 func (s System) String() string {
@@ -64,64 +67,86 @@ func (s System) String() string {
     "  SimbadRef: \"" + s.SimbadRef + "\"\n}"
 }
 
+type Widget struct {
+  Name string `datastore:"name"`
+  Blob string `datastore:"blob"`
+}
+
 
 func handleAdmin(w http.ResponseWriter, r *http.Request) {
-  m, err := r.MultipartReader()
-  util.CheckError("get multipart reader", r, err)
-  for {
-    part, err := m.NextPart()
-    if err == io.EOF {
-      break
-    } else if err != nil {
-      util.CheckError("next form part", r, err)
-    }
+  ctx := appengine.NewContext(r)
 
-    if part.FormName() == "systems" {
-      buf := new(bytes.Buffer)
-      written, err := io.Copy(buf, part)
-      io.WriteString(w, "FileName: " + part.FileName() + ", FormName: " + part.FormName() + ", Size: " + strconv.FormatInt(written, 10) + " b\n")
-
-      var s *[]System
-      err = json.Unmarshal([]byte(buf.String()), &s)
-      util.CheckError("unmarshal", r, err)
-
-      io.WriteString(w, strconv.Itoa(len(*s)) + "\n")
-
-      for k, v := range *s {
-        io.WriteString(w, strconv.Itoa(k) + " " + v.String() + "\n")
+  blob := ""
+  check := r.FormValue("check")
+  if check != "" {
+    blob += "Ran query for " + check + "\n"
+    q := datastore.NewQuery("System").Filter("name >=", check)
+    for t := q.Run(ctx); ; {
+      var s System
+      _, err := t.Next(&s)
+      if err == datastore.Done {
+        break
       }
+      if err != nil {
+        break
+      }
+      blob += "Query returned: " + s.String() + "\n"
     }
-
-    // ordinarily, you would check if this is the file you were interested in, and stream it
-    // to a backing store or to disk if it was. Note that you should probably wrap part with an
-    // io.LimitReader to avoid DOS attacks
-    //
-    // For examples sake, we skip this file by Closing it right away.
-
-    err = part.Close()
-    util.CheckError("close part", r, err)
   }
-  return
+
+  if r.FormValue("widget_name") != "" {
+    w_name := r.FormValue("widget_name")
+    w_blob := r.FormValue("widget_blob")
+    widget := Widget{
+      Name: w_name,
+      Blob: w_blob,
+    }
+    datastore.Put(ctx, datastore.NewIncompleteKey(ctx, "Widget", nil), &widget)
+    blob += "Saved widget to datastore"
+  }
+
+  m, err := r.MultipartReader()
+  if err == nil {
+    for {
+      part, err := m.NextPart()
+      if err == io.EOF {
+        break
+      } else if err != nil {
+        util.CheckError("next form part", r, err)
+      }
+
+      if part.FormName() == "systems" {
+        buf := new(bytes.Buffer)
+        written, err := io.Copy(buf, part)
+        blob += "FileName: " + part.FileName() + ", FormName: " + part.FormName() + ", Size: " + strconv.FormatInt(written, 10) + " b\n"
+
+        var s *[]System
+        err = json.Unmarshal([]byte(buf.String()), &s)
+        util.CheckError("unmarshal", r, err)
+
+
+        for k, v := range *s {
+          key, err := datastore.Put(ctx, datastore.NewIncompleteKey(ctx, "System", nil), &v)
+          util.CheckError("database put", r, err)
+          blob += "put: " + key.String() + " \n"
+          blob += strconv.Itoa(k) + " " + v.String() + "\n"
+
+          temp := new(System)
+          err = datastore.Get(ctx, key, &temp)
+          blob += "Wrote: " + v.String() + "\n"
+        }
+      }
+
+      err = part.Close()
+      util.CheckError("close part", r, err)
+    }
+  }
+
 
   t, err := template.ParseFiles("admin.html")
   util.CheckError("parse template", r, err)
 
-  blob := ""
-
-  // if r.FormValue("systems") != "" {
-  //   file, header, err := r.FormFile("systems")
-  //   util.CheckError("form file", r, err)
-  //   _ = file
-  //   _ = header
-
-  //   buf := new(bytes.Buffer)
-  //   buf.ReadFrom(file)
-
-  //   blob = "Got file: " + r.FormValue("systems")
-  //   // blob += " - " + buf.String()
-  // }
-
-  data := Admin {r.FormValue("check"), blob}
+  data := Admin {check, blob}
 
   err = t.Execute(w, data)
   util.CheckError("execute template", r, err)
