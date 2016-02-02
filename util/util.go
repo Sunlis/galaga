@@ -8,8 +8,8 @@ import (
 
 func CheckError(msg string, r *http.Request, err error) {
   if err != nil {
-    c := appengine.NewContext(r)
-    c.Infof(msg + " - " + err.Error())
+    ctx := appengine.NewContext(r)
+    ctx.Errorf(msg + " - " + err.Error())
     os.Exit(1)
   }
 }

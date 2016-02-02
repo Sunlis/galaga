@@ -1,0 +1,8 @@
+indexes:
+
+- kind: System
+  ancestor: no
+  properties:
+  - name: id
+  - name: name
+    direction: desc

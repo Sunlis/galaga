@@ -6,38 +6,42 @@
         display: inline-block;
         width: 150px;
       }
-      form {
+      section {
         margin: 8px;
         padding: 8px;
+        border: 1px solid rgba(0,0,0,0.5);
       }
       .blob {
         border: 1px solid rgba(0,0,0,0.5);
+        background-color: rgba(0,0,0,0.1);
         padding: 8px;
         max-height: 200px;
         overflow-y: scroll;
       }
     </style>
+    <script type="text/javascript">
+      var systems = {{.SystemNames}};
+      console.log(systems.length);
+    </script>
   </head>
   <body>
     <h1>Admin</h1>
     <div class="blob"><pre>{{.Blob}}</pre></div>
-    <form enctype="multipart/form-data" method="POST">
-      <label for="systems">Update systems</label>
-      <input type="file" name="systems" />
-      <button action="submit">Upload</button>
-    </form>
-    <form>
-      <label for="check">Check System</label>
-      <input type="text" name="check" value="{{.Check}}" />
-      <button action="submit">Submit</button>
-    </form>
 
-    <form>
-      <label for="widget_name">Widget name</label>
-      <input type="text" name="widget_name" />
-      <label for="widget_blob">Widget blob</label>
-      <input type="text" name="widget_blob" />
-      <button action="submit">Save</button>
+    <form enctype="multipart/form-data" method="POST">
+
+      <section>
+        <label for="systems">Update systems</label>
+        <input type="file" name="systems" />
+        <button action="submit">Upload</button>
+      </section>
+
+      <section>
+        <label for="check">Check System</label>
+        <input type="text" name="check" value="{{.Check}}" />
+        <button action="submit">Submit</button>
+      </section>
+
     </form>
   </body>
 </html>
