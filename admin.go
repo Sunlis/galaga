@@ -179,41 +179,53 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
 
   var toSave []System
 
-  for _, v := range s {
-    simple := &SearchableSystem{
-      Id: float64(v.Id),
-      Name: util.SpaceOut(v.Name),
-      RealName: v.Name,
-    }
-    id := fmt.Sprintf("sys-%08d", simple.Id)
-    err = index.Delete(ctx, id)
-    util.CheckError("remove document", r, err)
-    _, err = index.Put(ctx, id, simple)
-    util.CheckError("put document", r, err)
+  minId, _ := strconv.Atoi(r.FormValue("minid"))
+  idCount, _ := strconv.Atoi(r.FormValue("idcount"))
 
-    if r.FormValue("datecheck") == "" || v.UpdatedAt > data.Updated {
-      keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
-      query := datastore.NewQuery("System").Filter("id =", v.Id)
-      for iter := query.Run(ctx); ; {
-        var s System
-        key, err := iter.Next(&s)
-        if err == datastore.Done || err != nil {
-          break
-        }
-        err = datastore.Delete(ctx, key)
-        util.CheckError("remove old system", r, err)
-        addCount++
+  maxId := 0
+
+  for _, v := range s {
+    if (minId == 0 && idCount == 0) || (v.Id >= minId && v.Id <= minId + idCount) {
+      simple := &SearchableSystem{
+        Id: float64(v.Id),
+        Name: util.SpaceOut(v.Name),
+        RealName: v.Name,
       }
-      toSave = append(toSave, v)
-    } else {
-      skipCount++
+      id := fmt.Sprintf("sys-%08d", simple.Id)
+      err = index.Delete(ctx, id)
+      util.CheckError("remove document", r, err)
+      _, err = index.Put(ctx, id, simple)
+      util.CheckError("put document", r, err)
+
+      if r.FormValue("datecheck") == "" || v.UpdatedAt > data.Updated {
+        keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
+        query := datastore.NewQuery("System").Filter("id =", v.Id)
+        for iter := query.Run(ctx); ; {
+          var s System
+          key, err := iter.Next(&s)
+          if err == datastore.Done || err != nil {
+            break
+          }
+          err = datastore.Delete(ctx, key)
+          util.CheckError("remove old system", r, err)
+          addCount++
+        }
+        toSave = append(toSave, v)
+        if v.Id > maxId {
+          maxId = v.Id
+        }
+      } else {
+        skipCount++
+      }
     }
+
   }
 
   _, err = datastore.PutMulti(ctx, keys, toSave)
   util.CheckError("putmulti", r, err)
 
   a.Printf("Removed %d. Skipped %d. Added %d.", addCount, skipCount, len(toSave))
+  a.Printf("Max ID: %d", maxId)
 
   updateData(r, data)
 }
