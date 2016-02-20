@@ -2,6 +2,7 @@ package edm
 
 import (
 	// "io"
+  "fmt"
 	"bytes"
   "strings"
 	"net/http"
@@ -11,7 +12,8 @@ import (
   "mime/multipart"
 	"encoding/json"
 	"appengine"
-	"appengine/datastore"
+  "appengine/datastore"
+	"appengine/search"
 	// "appengine/user"
 )
 
@@ -27,6 +29,10 @@ type Admin struct {
 
 func (admin *Admin) Print(msg string) {
   admin.Blob += msg + "\n"
+}
+
+func (admin *Admin) Printf(msg string, parts ...interface{}) {
+  admin.Print(fmt.Sprintf(msg, parts...))
 }
 
 type Systems []struct {
@@ -51,6 +57,12 @@ type System struct {
 	NeedsPermit    int     `datastore:"needperm" json:"needs_permit"`
 	UpdatedAt      int     `datastore:"upd" json:"updated_at"`
 	SimbadRef      string  `datastore:"simbad" json:"simbad_ref"`
+}
+
+type SearchableSystem struct {
+  Id       float64
+  Name     string
+  RealName string
 }
 
 func (s System) String() string {
@@ -95,7 +107,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request) {
 
   fetchSystemList(r, &a)
 
-	t, err := template.ParseFiles("admin.html")
+	t, err := template.ParseFiles("templates/admin.html")
 	util.CheckError("parse template", r, err)
 
 	err = t.Execute(w, a)
@@ -123,19 +135,33 @@ func fetchSystemList(r *http.Request, a *Admin) {
 
 func handleCheck(check string, r *http.Request, a *Admin) {
   ctx := appengine.NewContext(r)
-  a.Print("Searching datastore for \"" + check + "\"...")
-  query := datastore.NewQuery("System").Filter("name =", check)
-  results := 0
-  for iter := query.Run(ctx); ; {
-    var s System
-    _, err := iter.Next(&s)
-    if err == datastore.Done || err != nil {
+  a.Print("Searching for \"" + check + "\"...")
+  index, err := search.Open("system_names")
+  util.CheckError("open index", r, err)
+
+  for t := index.Search(ctx, util.SpaceOut(check), nil); ; {
+    var sys SearchableSystem
+    _, err = t.Next(&sys)
+    if err != nil {
       break
     }
-    a.Print("Query found: " + s.String())
-    results++
+
+    if checkSystem(check, sys.RealName) {
+      a.Printf("Found: %s (ID: %d)", sys.RealName, int(sys.Id))
+    }
+
+    // query := datastore.NewQuery("System").Filter("id =", int(sys.Id))
+    // for iter := query.Run(ctx); ; {
+    //   var s System
+    //   _, err := iter.Next(&s)
+    //   if err == datastore.Done || err != nil {
+    //     break
+    //   }
+    //   if checkSystem(check, s.Name) {
+    //     a.Printf("System { Name: \"%s\", Id: %d }", s.Name, s.Id)
+    //   }
+    // }
   }
-  a.Print("Total results: " + strconv.Itoa(results))
 }
 
 func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Request, a *Admin) {
@@ -150,14 +176,26 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
 	var s *[]System
 	err = json.Unmarshal([]byte(buf.String()), &s)
 	util.CheckError("unmarshal", r, err)
-	for k, v := range *s {
-		key, err := datastore.Put(ctx, datastore.NewIncompleteKey(ctx, "System", nil), &v)
-		util.CheckError("database put", r, err)
-    a.Print("put: " + key.String())
-		a.Print(strconv.Itoa(k) + " " + v.String())
 
-		// temp := new(System)
-		// err = datastore.Get(ctx, key, &temp)
-		// a.Print("Wrote: " + v.String())
-	}
+  index, err := search.Open("system_names")
+  util.CheckError("open index", r, err)
+
+  var keys []*datastore.Key
+  for _, v := range *s {
+    keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
+    simple := &SearchableSystem{
+      Id: float64(v.Id),
+      Name: util.SpaceOut(v.Name),
+      RealName: v.Name,
+    }
+    _, err = index.Put(ctx, fmt.Sprintf("sys-%08d", simple.Id) , simple)
+    util.CheckError("put search document", r, err)
+  }
+
+  _, err = datastore.PutMulti(ctx, keys, *s)
+  util.CheckError("putmulti", r, err)
+}
+
+func checkSystem(query string, name string) bool {
+  return strings.Contains(strings.ToLower(name), strings.ToLower(query))
 }
