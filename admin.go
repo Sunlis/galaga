@@ -191,7 +191,7 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
     _, err = index.Put(ctx, id, simple)
     util.CheckError("put document", r, err)
 
-    if v.UpdatedAt > data.Updated {
+    if r.FormValue("datecheck") == "" || v.UpdatedAt > data.Updated {
       keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
       query := datastore.NewQuery("System").Filter("id =", v.Id)
       for iter := query.Run(ctx); ; {
