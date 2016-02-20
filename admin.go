@@ -24,7 +24,6 @@ func init() {
 type Admin struct {
 	Check string
 	Blob  string
-  SystemNames string
 }
 
 func (admin *Admin) Print(msg string) {
@@ -87,50 +86,24 @@ func (s System) String() string {
 }
 
 func handleAdmin(w http.ResponseWriter, r *http.Request) {
-	a := Admin{"", "", ""}
+	a := Admin{"", ""}
 
 	err := r.ParseMultipartForm(128 * 1024 * 1024)
 	if err == nil {
 		if file, header, err := r.FormFile("systems"); err == nil {
-			a.Print("Found file " + header.Filename)
 			handleSystems(file, header, r, &a)
 		}
 		if value := r.FormValue("check"); value != "" {
       a.Check = value
       handleCheck(value, r, &a)
-		} else {
-			a.Print("No check")
 		}
-	} else {
-		a.Print("No form data")
 	}
-
-  fetchSystemList(r, &a)
 
 	t, err := template.ParseFiles("templates/admin.html")
 	util.CheckError("parse template", r, err)
 
 	err = t.Execute(w, a)
 	util.CheckError("execute template", r, err)
-}
-
-func fetchSystemList(r *http.Request, a *Admin) {
-  ctx := appengine.NewContext(r)
-  names := []string{}
-  query := datastore.NewQuery("System").Project("id", "name").Order("name")
-  for iter := query.Run(ctx); ; {
-    var s System
-    _, err := iter.Next(&s)
-    if err != nil {
-      break
-    }
-    names = append(names, s.Name)
-  }
-  if len(names) > 0 {
-    a.SystemNames = "[\"" + strings.Join(names[:], "\", \"") + "\"]"
-  } else {
-    a.SystemNames = "[]"
-  }
 }
 
 func handleCheck(check string, r *http.Request, a *Admin) {
@@ -168,10 +141,8 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
   ctx := appengine.NewContext(r)
 
   buf := new(bytes.Buffer)
-  read, err := buf.ReadFrom(file)
+  _, err := buf.ReadFrom(file)
   util.CheckError("read file", r, err)
-  a.Print("Read " + strconv.FormatInt(read, 10) + " bytes from file")
-  a.Print(buf.String())
 
 	var s *[]System
 	err = json.Unmarshal([]byte(buf.String()), &s)
@@ -179,6 +150,8 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
 
   index, err := search.Open("system_names")
   util.CheckError("open index", r, err)
+
+  addCount := 0
 
   var keys []*datastore.Key
   for _, v := range *s {
@@ -188,12 +161,29 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
       Name: util.SpaceOut(v.Name),
       RealName: v.Name,
     }
-    _, err = index.Put(ctx, fmt.Sprintf("sys-%08d", simple.Id) , simple)
-    util.CheckError("put search document", r, err)
+    id := fmt.Sprintf("sys-%08d", simple.Id)
+    err = index.Delete(ctx, id)
+    util.CheckError("remove document", r, err)
+    _, err = index.Put(ctx, id, simple)
+    util.CheckError("put document", r, err)
+
+    query := datastore.NewQuery("System").Filter("id =", v.Id)
+    for iter := query.Run(ctx); ; {
+      var s System
+      key, err := iter.Next(&s)
+      if err == datastore.Done || err != nil {
+        break
+      }
+      err = datastore.Delete(ctx, key)
+      util.CheckError("remove old system", r, err)
+      addCount++
+    }
   }
 
   _, err = datastore.PutMulti(ctx, keys, *s)
   util.CheckError("putmulti", r, err)
+
+  a.Printf("Removed %d old systems. Added %d new ones.", addCount, len(*s))
 }
 
 func checkSystem(query string, name string) bool {
