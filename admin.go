@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"text/template"
-	"util"
+  "util"
+	"time"
   "mime/multipart"
 	"encoding/json"
 	"appengine"
@@ -19,6 +20,10 @@ import (
 
 func init() {
 	http.HandleFunc("/admin", handleAdmin)
+}
+
+type Data struct {
+  Updated int `datastore:"updated"`
 }
 
 type Admin struct {
@@ -85,13 +90,29 @@ func (s System) String() string {
 		"  SimbadRef: \"" + s.SimbadRef + "\"\n}"
 }
 
+func getData(r *http.Request) Data {
+  ctx := appengine.NewContext(r)
+  query := datastore.NewQuery("Data")
+  for iter := query.Run(ctx); ; {
+    var d Data
+    _, err := iter.Next(&d)
+    if err != nil {
+      break
+    }
+    return d
+  }
+  return Data{0}
+}
+
 func handleAdmin(w http.ResponseWriter, r *http.Request) {
 	a := Admin{"", ""}
+
+  data := getData(r)
 
 	err := r.ParseMultipartForm(128 * 1024 * 1024)
 	if err == nil {
 		if file, header, err := r.FormFile("systems"); err == nil {
-			handleSystems(file, header, r, &a)
+			handleSystems(file, header, r, &a, &data)
 		}
 		if value := r.FormValue("check"); value != "" {
       a.Check = value
@@ -137,14 +158,14 @@ func handleCheck(check string, r *http.Request, a *Admin) {
   }
 }
 
-func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Request, a *Admin) {
+func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Request, a *Admin, data *Data) {
   ctx := appengine.NewContext(r)
 
   buf := new(bytes.Buffer)
   _, err := buf.ReadFrom(file)
   util.CheckError("read file", r, err)
 
-	var s *[]System
+	var s []System
 	err = json.Unmarshal([]byte(buf.String()), &s)
 	util.CheckError("unmarshal", r, err)
 
@@ -152,10 +173,13 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
   util.CheckError("open index", r, err)
 
   addCount := 0
+  skipCount := 0
 
   var keys []*datastore.Key
-  for _, v := range *s {
-    keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
+
+  var toSave []System
+
+  for _, v := range s {
     simple := &SearchableSystem{
       Id: float64(v.Id),
       Name: util.SpaceOut(v.Name),
@@ -167,23 +191,48 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
     _, err = index.Put(ctx, id, simple)
     util.CheckError("put document", r, err)
 
-    query := datastore.NewQuery("System").Filter("id =", v.Id)
-    for iter := query.Run(ctx); ; {
-      var s System
-      key, err := iter.Next(&s)
-      if err == datastore.Done || err != nil {
-        break
+    if v.UpdatedAt > data.Updated {
+      keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
+      query := datastore.NewQuery("System").Filter("id =", v.Id)
+      for iter := query.Run(ctx); ; {
+        var s System
+        key, err := iter.Next(&s)
+        if err == datastore.Done || err != nil {
+          break
+        }
+        err = datastore.Delete(ctx, key)
+        util.CheckError("remove old system", r, err)
+        addCount++
       }
-      err = datastore.Delete(ctx, key)
-      util.CheckError("remove old system", r, err)
-      addCount++
+      toSave = append(toSave, v)
+    } else {
+      skipCount++
     }
   }
 
-  _, err = datastore.PutMulti(ctx, keys, *s)
+  _, err = datastore.PutMulti(ctx, keys, toSave)
   util.CheckError("putmulti", r, err)
 
-  a.Printf("Removed %d old systems. Added %d new ones.", addCount, len(*s))
+  a.Printf("Removed %d. Skipped %d. Added %d.", addCount, skipCount, len(toSave))
+
+  updateData(r, data)
+}
+
+func updateData(r *http.Request, data *Data) {
+  ctx := appengine.NewContext(r)
+  query := datastore.NewQuery("Data")
+  for iter := query.Run(ctx); ; {
+    var d Data
+    key, err := iter.Next(&d)
+    if err != nil {
+      break
+    }
+    datastore.Delete(ctx, key)
+    util.CheckError("remove old data entity", r, err)
+  }
+
+  data.Updated = int(time.Now().Unix())
+  datastore.Put(ctx, datastore.NewIncompleteKey(ctx, "Data", nil), data)
 }
 
 func checkSystem(query string, name string) bool {
