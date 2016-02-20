@@ -199,16 +199,18 @@ func handleSystems(file multipart.File, header *multipart.FileHeader, r *http.Re
 
       if r.FormValue("datecheck") == "" || v.UpdatedAt > data.Updated {
         keys = append(keys, datastore.NewIncompleteKey(ctx, "System", nil))
-        query := datastore.NewQuery("System").Filter("id =", v.Id)
-        for iter := query.Run(ctx); ; {
-          var s System
-          key, err := iter.Next(&s)
-          if err == datastore.Done || err != nil {
-            break
+        if r.FormValue("prevcheck") != "" {
+          query := datastore.NewQuery("System").Filter("id =", v.Id)
+          for iter := query.Run(ctx); ; {
+            var s System
+            key, err := iter.Next(&s)
+            if err == datastore.Done || err != nil {
+              break
+            }
+            err = datastore.Delete(ctx, key)
+            util.CheckError("remove old system", r, err)
+            addCount++
           }
-          err = datastore.Delete(ctx, key)
-          util.CheckError("remove old system", r, err)
-          addCount++
         }
         toSave = append(toSave, v)
         if v.Id > maxId {
