@@ -1,18 +1,27 @@
 application: balmy-moonlight-372
-version: alpha-003
+version: alpha-004
 runtime: go
 api_version: go1
+beta_settings:
+  cloud_sql_instances: ["balmy-moonlight-372:us-central1:galaga-sql-01"]
+skip_files:
+- ^_ignore$
+- ^bower_components$
 
 handlers:
-- url: /static
-  static_dir: static
+- url: /
+  script: index.go
 
-- url: /map
-  static_dir: map
+- url: /favicon.ico
+  static_files: favicon.ico
+  upload: favicon.ico
 
-- url: /map
-  static_files: map/map.html
-  upload: map/map.html
+- url: /images
+  static_dir: images
 
-- url: /.*
-  script: _go_app
+- url: /ajax
+  script: ajax.go
+
+- url: /(.+)
+  static_files: app/app/\1
+  upload: .*

@@ -1,0 +1,124 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/paper-drawer-panel/paper-drawer-panel.html">
+<link rel="import" href="../../bower_components/paper-header-panel/paper-header-panel.html">
+<link rel="import" href="../../bower_components/paper-toolbar/paper-toolbar.html">
+<link rel="import" href="../../bower_components/iron-image/iron-image.html">
+<link rel="import" href="../../bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../../bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="../../bower_components/paper-styles/color.html">
+<link rel="import" href="../galaga-menu/galaga-menu.html">
+<link rel="import" href="../galaga-page-one-to-many/galaga-page-one-to-many.html">
+<link rel="import" href="../galaga-page-home/galaga-page-home.html">
+
+<dom-module id="galaga-app">
+  <template>
+    <style include="shared-styles">
+      :host {
+        --primary-color: var(--paper-purple-700);
+        --secondary-color: var(--paper-purple-600);
+        @apply(--paper-font-body2);
+      }
+
+      paper-header-panel {
+        height: 100%;
+        width: 100%;
+      }
+
+      paper-toolbar {
+        line-height: 1.2em;
+      }
+
+      paper-toolbar iron-image {
+        width: 48px;
+        height: 48px;
+      }
+
+      paper-header-panel {
+        --paper-header-panel-body: {
+        };
+      }
+
+      #content-wrapper {
+        background-color: rgba(0,0,0,0.02);
+        min-height: calc(100vh - 64px);
+        padding: 16px;
+        box-sizing: border-box;
+        @apply(--layout-vertical);
+        @apply(--layout-center);
+      }
+    </style>
+
+    <paper-drawer-panel id="menu" responsive-width="900px">
+      <galaga-menu drawer></galaga-menu>
+      <paper-header-panel main>
+        <paper-toolbar>
+          <!-- <iron-image src="/images/logo_white.png" sizing="contain"></iron-image> -->
+          <paper-icon-button icon="icons:menu" on-click="toggleMenu"></paper-icon-button>
+          <span class="title">Elite: Dangerous Navigation Tools</span>
+          <paper-icon-button icon="icons:info"></paper-icon-button>
+        </paper-toolbar>
+        <div id="content-wrapper">
+          <div id="content-pane">
+          </div>
+        </div>
+      </paper-drawer-panel>
+    </paper-header-panel>
+
+    <iron-media-query query="(max-width: 900px)" query-matches="{{narrowPage}}"></iron-media-query>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+
+      Polymer({
+        is: 'galaga-app',
+
+        properties: {
+          page: {
+            type: String,
+            value: 'home',
+            observer: 'pageChanged_',
+          },
+          narrowPage: {
+            type: Boolean,
+          }
+        },
+
+        listeners: {
+          'navigate': 'onNavigate_',
+        },
+
+        attached: function() {
+          this.$.menu.closeDrawer();
+        },
+
+        onNavigate_: function(e, detail) {
+          this.page = detail.page;
+          this.$.menu.closeDrawer();
+        },
+
+        pageChanged_: function() {
+          var component = document.createElement('galaga-page-' + this.page);
+          if (component) {
+            var pane = Polymer.dom(this.$['content-pane']);
+            while (pane.firstChild) {
+              pane.removeChild(pane.firstChild);
+            }
+            pane.appendChild(component);
+          } else {
+            console.debug('Couldn\'t create page for type', this.page);
+          }
+        },
+
+        toggleMenu: function() {
+          if (this.narrowPage) {
+            this.$.menu.togglePanel();
+          } else {
+            this.$.menu.forceNarrow = !this.$.menu.forceNarrow;
+          }
+        },
+      });
+    })();
+  </script>
+</dom-module>

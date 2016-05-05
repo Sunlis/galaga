@@ -59,7 +59,7 @@ function findBounds() {
 /**
  * @constructor
  */
-System = function() {
+var System = function() {
   this.id = null;
   this.name = null;
   this.x = null;

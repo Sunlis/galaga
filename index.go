@@ -1,7 +1,6 @@
 package edm
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -10,5 +9,5 @@ func init() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Hello, world!")
+	http.ServeFile(w, r, "app/app/index.html")
 }

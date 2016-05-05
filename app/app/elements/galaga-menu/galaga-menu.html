@@ -1,0 +1,38 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/paper-button/paper-button.html">
+
+<dom-module id="galaga-menu">
+  <template>
+    <style include="shared-styles">
+      :host {
+        display: block;
+      }
+
+      span,
+      input {
+        @apply(--paper-font-body2);
+      }
+    </style>
+
+    <paper-button on-click="navigate" page="home">Home</paper-button>
+    <paper-button on-click="navigate" page="one-to-many">One to many</paper-button>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+
+      Polymer({
+        is: 'galaga-menu',
+
+        properties: {},
+
+        navigate: function(e) {
+          this.fire('navigate', {
+            page: e.target.getAttribute('page'),
+          });
+        },
+      });
+    })();
+  </script>
+</dom-module>

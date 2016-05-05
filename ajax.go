@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"appengine"
-	_ "google.golang.org/appengine/cloudsql"
 	"database/sql"
+	// mysql driver used in dev
 	_ "github.com/go-sql-driver/mysql"
+	// mymysql driver used in production
+	_ "github.com/ziutek/mymysql/godrv"
 )
 
 type SqlSystem struct {
@@ -51,7 +53,6 @@ func handleSystemSearch(w http.ResponseWriter, r *http.Request) {
 		var id int
 		var name string
 		_ = rows.Scan(&id, &name)
-		// fmt.Fprintf(w, "Found %v (id: %v)\n", name, id)
 		results = append(results, SqlSystem{id, name})
 	}
 	w.Header().Set("Content-Type", "application/javascript")
@@ -63,21 +64,30 @@ func handleSystemSearch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func sqlConnect(database string) (db *sql.DB, err error) {
+func sqlConnect(database string) (*sql.DB, error) {
+	var driver string
 	var datasource string
+	
+	user := "readonly"
+	pass := "readonly"
+
 	if appengine.IsDevAppServer() {
-		datasource = "readonly:readonly@tcp(173.194.252.109:3306)/" + database
+		driver = "mysql"
+		server := "tcp(130.211.159.247:3306)"
+		datasource = fmt.Sprintf("%v:%v@%v/%v", user, pass, server, database)
 	} else {
-		datasource = "readonly@cloudsql(balmy-moonlight-372:galaga-sql-02)/" + database
+		driver = "mymysql"
+		server := "cloudsql:balmy-moonlight-372:us-central1:galaga-sql-01"
+		datasource = fmt.Sprintf("%v*%v/%v/%v", server, database, user, pass)
 	}
-	db, err = sql.Open("mysql", datasource)
-	return
+	
+	return sql.Open(driver, datasource)
 }
 
 func reportError(w http.ResponseWriter, message string, code int) {
-	if !appengine.IsDevAppServer() {
-		message = http.StatusText(code)
-	}
+	// if !appengine.IsDevAppServer() {
+	// 	message = http.StatusText(code)
+	// }
 	http.Error(w, message, code)
 	return
 }

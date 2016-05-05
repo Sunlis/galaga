@@ -1,0 +1,64 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/paper-card/paper-card.html">
+
+<dom-module id="galaga-page-home">
+  <template>
+    <style include="shared-styles">
+      :host {
+        display: block;
+      }
+
+      span,
+      input {
+        @apply(--paper-font-body2);
+      }
+
+      paper-card {
+        width: 350px;
+        --paper-card-header-color: white;
+        --paper-card-header: {
+          @apply(--layout-vertical);
+          @apply(--layout-center);
+          background-color: var(--secondary-color);
+          padding-bottom: 32px;
+        };
+        --paper-card-header-image: {
+          width: 128px;
+          height: 128px;
+        };
+      }
+    </style>
+
+    <paper-card heading="Welcome!" image="/images/logo_white.png">
+      <div class="card-content">
+        <p>
+          You've found my little project aimed at making navigating the stars of Elite: Dangerous a little easier.
+        </p>
+        <p>
+          You'll find a list of tools in the menu on the left. Here are a few to get you started:
+        </p>
+      </div>
+      <div class="card-actions">
+        <paper-button on-click="onetomany">One to Many</paper-button>
+      </div>
+    </paper-card>
+  </template>
+
+  <script>
+    (function() {
+      'use strict';
+
+      Polymer({
+        is: 'galaga-page-home',
+
+        properties: {},
+
+        onetomany: function() {
+          this.fire('navigate', {
+            page: 'one-to-many',
+          });
+        },
+      });
+    })();
+  </script>
+</dom-module>
